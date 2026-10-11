@@ -95,8 +95,10 @@ rm -f ~/.local/state/kristjaningi.touchline.json
 
 ## Development
 
+From the repository folder:
+
 ```sh
-omarchy plugin validate ~/.config/omarchy/plugins/kristjaningi.touchline
+omarchy plugin validate .
 node --test tests/
 ```
 
