@@ -37,7 +37,10 @@ var MAX_QUERY = 40
 var MAX_SEARCH_CHARS = 512 * 1024
 
 function searchQuery(text) {
-  return clean(text, MAX_QUERY + 1).slice(0, MAX_QUERY)
+  var query = clean(text, MAX_QUERY + 1).slice(0, MAX_QUERY)
+  // Half a surrogate pair would make encodeURIComponent throw.
+  var last = query.charCodeAt(query.length - 1)
+  return last >= 0xd800 && last <= 0xdbff ? query.slice(0, -1) : query
 }
 
 function searchUrl(text) {
@@ -98,21 +101,33 @@ function parseTeamSearch(raw) {
   var items = parsed && Array.isArray(parsed.items) ? parsed.items : []
   var out = [], seen = Object.create(null)
   for (var i = 0; i < items.length && out.length < 8; i++) {
-    var item = items[i]
-    if (!item || item.type !== "team" || item.sport !== "soccer") continue
+    var hit = searchHit(items[i])
+    if (hit && !seen[hit.id]) {
+      seen[hit.id] = true
+      out.push(hit)
+    }
+  }
+  return out
+}
+
+// One search result, or null. Hostile values (an object whose toString isn't
+// callable) can make String() throw; such an item is skipped, not the search.
+function searchHit(item) {
+  try {
+    if (!item || item.type !== "team" || item.sport !== "soccer") return null
     var id = teamId(item.id)
     var name = clean(item.displayName || item.name, 40)
-    if (id === "" || name === "" || seen[id]) continue
-    seen[id] = true
-    out.push({
+    if (id === "" || name === "") return null
+    return {
       id: id,
       name: name,
       abbr: clean(item.abbreviation, 5).toUpperCase(),
       league: leagueName(item.league || item.defaultLeagueSlug),
       logo: logoUrl(item)
-    })
+    }
+  } catch (e) {
+    return null
   }
-  return out
 }
 
 function validLeague(slug) {
@@ -259,18 +274,22 @@ function parseSchedule(raw, id, fetchedAt) {
   var wanted = teamId(id)
   var out = []
   for (var i = 0; i < parsed.events.length && i < MAX_EVENTS; i++) {
-    var match = normalizeEvent(parsed.events[i], wanted, fetchedAt)
+    // A malformed event is dropped rather than failing the whole feed.
+    var match = null
+    try { match = normalizeEvent(parsed.events[i], wanted, fetchedAt) } catch (e) {}
     if (match) out.push(match)
   }
   return out
 }
 
-// A finished, postponed or cancelled match doesn't go back to live or
-// scheduled, so a terminal state wins outright; otherwise the most recently
-// fetched copy does, so a stale feed can't hold an old live score.
+// A finished match doesn't go back to live or scheduled, so a completed copy
+// wins outright. A postponement wins over copies for the same kick-off, but a
+// copy with a different kick-off is the match rescheduled, and the fresher of
+// the two decides. Otherwise the most recently fetched copy wins, so a stale
+// feed can't hold an old live score.
 function newer(a, b) {
-  var aFinal = a.state === "post", bFinal = b.state === "post"
-  if (aFinal !== bFinal) return aFinal ? a : b
+  if (a.completed !== b.completed) return a.completed ? a : b
+  if (a.postponed !== b.postponed && a.time === b.time) return a.postponed ? a : b
   if (a.fetched !== b.fetched) return a.fetched > b.fetched ? a : b
   return rank(a) >= rank(b) ? a : b
 }

@@ -193,6 +193,41 @@ test("merge: final beats live beats scheduled, and fresher feeds win ties", () =
   assert.strictEqual(byId(Model.merge(liveNew, postponed)).postponed, true)
 })
 
+test("merge: a rescheduled match replaces its retained postponement", () => {
+  const postponed = Model.parseSchedule(JSON.stringify({ events: [event({ id: "3", date: "2026-10-13T19:00Z", state: "post", completed: false, home: ARS, away: LIL })] }), "359", 1000)
+  const rescheduled = Model.parseSchedule(JSON.stringify({ events: [event({ id: "3", date: "2026-11-04T19:45Z", state: "pre", home: ARS, away: LIL })] }), "359", 2000)
+  const sameKickOff = Model.parseSchedule(JSON.stringify({ events: [event({ id: "3", date: "2026-10-13T19:00Z", state: "pre", home: ARS, away: LIL })] }), "359", 2000)
+  const byId = (list) => list.find((m) => m.id === "3")
+
+  // A newer copy with a new kick-off wins, whichever feed comes first.
+  for (const all of [Model.merge(postponed, rescheduled), Model.merge(rescheduled, postponed)]) {
+    const m = byId(all)
+    assert.strictEqual(m.postponed, false)
+    assert.strictEqual(m.time, Date.parse("2026-11-04T19:45Z"))
+    assert.deepStrictEqual(Array.from(Model.upcoming(all, NOW, 3), (u) => u.id), ["3"])
+  }
+  // A lagging feed still showing the original kick-off doesn't undo it.
+  assert.strictEqual(byId(Model.merge(postponed, sameKickOff)).postponed, true)
+  // And a completed match still beats anything fresher.
+  const done = Model.parseSchedule(JSON.stringify({ events: [event({ id: "3", date: "2026-10-13T19:00Z", home: ARS, away: LIL, hs: 2, as: 0 })] }), "359", 500)
+  assert.strictEqual(byId(Model.merge(rescheduled, done)).result, "W")
+})
+
+test("one malformed event or search hit is skipped, not the whole response", () => {
+  const raw = JSON.parse(results)
+  // An object whose toString isn't callable makes String() throw.
+  raw.events.unshift({ id: { toString: 1 } })
+  raw.events.push({ ...raw.events[1], id: "9", competitions: [{ ...raw.events[1].competitions[0], venue: { fullName: { toString: 1 } } }] })
+  const parsed = Model.parseSchedule(JSON.stringify(raw), "359")
+  assert.deepStrictEqual(Array.from(parsed, (m) => m.id), ["2", "1"])
+
+  const hits = Model.parseTeamSearch(JSON.stringify({ items: [
+    { id: "359", type: "team", sport: "soccer", displayName: { toString: 1 } },
+    { id: "359", type: "team", sport: "soccer", displayName: "Arsenal", league: "eng.1" },
+  ] }))
+  assert.deepStrictEqual(Array.from(hits, (h) => h.name), ["Arsenal"])
+})
+
 test("a scoreboard copy keeps the competition and crests from the schedule", () => {
   const sched = Model.parseSchedule(fixtures, "359", 1000)
   const board = JSON.parse(JSON.stringify({ events: [event({ id: "3", date: "2026-10-13T19:00Z", state: "in", completed: false, home: team("359", "Arsenal", "ARS", ""), away: team("166", "Lille", "LILL", ""), hs: 2, as: 1 })] }))
@@ -276,6 +311,11 @@ test("search url: trimmed, length-capped, encoded, and empty for tiny queries", 
   assert.strictEqual(Model.searchUrl("  Bayern München  "),
     "https://site.web.api.espn.com/apis/common/v3/search?type=team&sport=soccer&limit=8&query=Bayern%20M%C3%BCnchen")
   assert.ok(Model.searchUrl("x&y=1#" + "z".repeat(100)).endsWith("query=x%26y%3D1%23" + "z".repeat(34)))
+  // The cap lands inside an emoji: drop the half, don't throw.
+  const emoji = "a".repeat(39) + "\u{1F600}"
+  assert.strictEqual(Model.searchQuery(emoji), "a".repeat(39))
+  assert.ok(Model.searchUrl(emoji).endsWith("query=" + "a".repeat(39)))
+  assert.ok(Model.searchUrl("a".repeat(38) + "\u{1F600}").endsWith("%F0%9F%98%80"))
 })
 
 test("saved team file: round-trips, and rejects anything odd", () => {

@@ -60,11 +60,12 @@ Settings live in the bar settings, or on the widget's entry in
 
 Everything comes from ESPN's public, keyless site API at `site.api.espn.com`, with team
 search at `site.web.api.espn.com` and crests from `a.espncdn.com`; nothing else is
-contacted, and nothing about you is sent. It fetches the team's schedule every
-30 minutes, and every minute from 15 minutes before kick-off until the match ends, when
-it also reads the competition's scoreboard for the live score. Failed fetches retry,
-then fall back to every 5 minutes. Each monitor's bar fetches on its own, as Omarchy's
-weather widget does.
+contacted. There's no account, key or telemetry: ESPN sees what any web request shows
+(your IP address), plus the names you search for and the team you follow. It fetches the
+team's schedule every 30 minutes, and every minute from 15 minutes before kick-off until
+the match ends, when it also reads the competition's scoreboard for the live score.
+Failed fetches retry, then fall back to every 5 minutes. Each monitor's bar fetches on
+its own, as Omarchy's weather widget does.
 
 ESPN's API is undocumented and unofficial: it can change without notice, and if it
 does, the widget stops updating until the plugin is fixed.

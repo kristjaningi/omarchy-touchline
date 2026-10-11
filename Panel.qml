@@ -114,7 +114,10 @@ Panel {
     : "Pick a team"
   readonly property var windowMatch: Model.windowMatch(matches, now)
   readonly property bool matchWindow: windowMatch !== null
+  // The scoreboard only counts while it's in use; a failure from an earlier
+  // match shouldn't mark today's fixtures offline.
   readonly property bool failing: resultsFetch.failed || fixturesFetch.failed
+    || (matchWindow && liveFetch.failed)
   readonly property string statusText: !hasTeam ? ""
     : !loaded
     ? (failing ? "Couldn't reach ESPN. Trying again shortly." : "Fetching fixtures…")
@@ -189,12 +192,14 @@ Panel {
   property string searchPendingUrl: ""
   property string searchActiveUrl: ""
   property string searchedQuery: ""
+  property bool searchFailed: false
 
   function startPicking() {
     picking = true
     searchResults = []
     searchIndex = 0
     searchedQuery = ""
+    searchFailed = false
     Qt.callLater(function() {
       teamField.text = ""
       teamField.forceActiveFocus()
@@ -214,6 +219,7 @@ Panel {
     if (url === "") {
       searchResults = []
       searchedQuery = ""
+      searchFailed = false
       return
     }
     if (!searchProc.running) startSearch()
@@ -222,7 +228,7 @@ Panel {
   function startSearch() {
     searchActiveUrl = searchPendingUrl
     searching = true
-    searchProc.command = ["curl", "-fsS", "--max-time", "8", "--max-filesize", "524288", "--proto", "=https", searchActiveUrl]
+    searchProc.command = ["curl", "-q", "-fsS", "--max-time", "8", "--max-filesize", "524288", "--proto", "=https", searchActiveUrl]
     searchProc.running = true
   }
 
@@ -267,9 +273,12 @@ Panel {
           if (root.searchPendingUrl !== "") Qt.callLater(root.startSearch)
           return
         }
-        root.searchResults = root.showPicker ? Model.parseTeamSearch(text) : []
         root.searchIndex = 0
-        root.searchedQuery = Model.searchQuery(teamField.text)
+        // curl -f leaves stdout empty on HTTP errors, timeouts and DNS
+        // failures; that's ESPN unreachable, not a search with no hits.
+        root.searchFailed = text === ""
+        root.searchResults = root.showPicker && !root.searchFailed ? Model.parseTeamSearch(text) : []
+        root.searchedQuery = root.searchFailed ? "" : Model.searchQuery(teamField.text)
       }
     }
   }
@@ -317,7 +326,7 @@ Panel {
       }
       requestedUrl = url
       requestedTeam = team
-      proc.command = ["curl", "-fsS", "--max-time", "10", "--max-filesize", "2097152", "--proto", "=https", url]
+      proc.command = ["curl", "-q", "-fsS", "--max-time", "10", "--max-filesize", "2097152", "--proto", "=https", url]
       proc.running = true
     }
 
@@ -376,6 +385,8 @@ Panel {
     team: root.teamId
     url: Model.scoreboardUrl(root.windowMatch)
     onParsed: function(list) { root.liveFeed = list }
+    // Fetch as soon as a feed reveals the window, not on the next refresh tick.
+    onUrlChanged: if (url !== "") start()
   }
 
   // Every minute around kick-off; every 30 minutes otherwise, or every 5
@@ -662,6 +673,7 @@ Panel {
             width: parent.width
             leftPadding: Style.space(4)
             text: root.searching ? "Searching…"
+              : root.searchFailed ? "Couldn't reach ESPN. Try again shortly."
               : (root.searchedQuery !== "" && root.searchResults.length === 0) ? "No teams found"
               : root.searchResults.length === 0 ? "Type a few letters of your team's name" : ""
             color: root.dim
