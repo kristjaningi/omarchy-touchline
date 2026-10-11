@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "kristjaningi.touchline",
   "name": "Touchline",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "author": "Kristján Ingi",
   "description": "Your football team's next fixtures, latest result and live score in the bar",
   "homepage": "https://github.com/kristjaningi/omarchy-touchline",
