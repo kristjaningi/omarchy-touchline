@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "kristjaningi.touchline",
+  "name": "Touchline",
+  "version": "2.0.0",
+  "author": "Kristján Ingi",
+  "description": "Your football team's next fixtures, latest result and live score in the bar",
+  "homepage": "https://github.com/kristjaningi/omarchy-touchline",
+  "license": "MIT",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Touchline",
+    "description": "Pick any club or national team. The next fixture sits in the bar, with the live score during a match; the popup has the latest result, recent form, a countdown and upcoming fixtures. Data from ESPN's public API (site.api.espn.com), every 30 minutes and every minute around kick-off; crests from a.espncdn.com.",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "showLabel": true,
+      "fixtures": 4,
+      "teamId": "",
+      "autoRefresh": true,
+      "teamName": ""
+    },
+    "schema": [
+      {
+        "key": "showLabel",
+        "type": "boolean",
+        "label": "Show next opponent in the bar",
+        "defaultValue": true,
+        "description": "Off leaves just the ball; a live match still shows its score. On a vertical bar the label is a tooltip."
+      },
+      {
+        "key": "fixtures",
+        "type": "integer",
+        "label": "Upcoming fixtures in the popup",
+        "min": 1,
+        "max": 8,
+        "step": 1,
+        "defaultValue": 4
+      },
+      {
+        "key": "teamId",
+        "type": "string",
+        "label": "Team",
+        "defaultValue": "",
+        "description": "Set by picking a team in the popup (click the team name to change it). This is the team's ESPN id, e.g. 359 for Arsenal."
+      },
+      {
+        "key": "autoRefresh",
+        "type": "boolean",
+        "label": "Refresh in the background",
+        "defaultValue": true,
+        "description": "Fetches from ESPN every 30 minutes, and every minute from 15 minutes before kick-off until the match ends. Off fetches only at startup, when you open the popup, and on middle click."
+      }
+    ]
+  }
+}
