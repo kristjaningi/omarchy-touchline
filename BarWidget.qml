@@ -49,6 +49,10 @@ BarWidget {
   readonly property string label: panelLoader.item ? panelLoader.item.barLabel : ""
   readonly property bool showLabel: !vertical && label !== "" && (live || setting("showLabel", true) !== false)
 
+  // Match the full ball-and-fixture label; icon-only buttons keep the shell's
+  // default compact mark because their labelWidth is zero.
+  readonly property real openPanelIndicatorWidth: button.labelWidth
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
